@@ -8,6 +8,9 @@ import 'react-quill/dist/quill.snow.css'; // 引入默认的雪花主题样式
 function KnowledgePointFormPage() {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState(''); // content现在将存储HTML
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
     const { id } = useParams();
     const navigate = useNavigate();
     const isEditing = Boolean(id);
@@ -31,34 +34,159 @@ function KnowledgePointFormPage() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        // 重置状态
+        setError('');
+        setSuccess('');
+        setLoading(true);
+
+        // 基本验证
+        if (!title.trim()) {
+            setError('标题不能为空');
+            setLoading(false);
+            return;
+        }
+
+        if (!content.trim()) {
+            setError('内容不能为空');
+            setLoading(false);
+            return;
+        }
+
         // 注意：content现在是HTML，后端需要能处理HTML
-        const kpData = { title, content };
+        const kpData = { title: title.trim(), content: content.trim() };
+        
         try {
+            let response;
             if (isEditing) {
-                await apiClient.put(`/knowledge-points/${id}`, kpData);
+                console.log('更新知识点', id, kpData);
+                response = await apiClient.put(`/knowledge-points/${id}`, kpData);
+                console.log('API响应:', response.data);
+                setSuccess('知识点更新成功！');
+                
+                // 立即导航，不延迟
+                navigate('/');
             } else {
-                await apiClient.post('/knowledge-points', kpData);
+                console.log('创建知识点', kpData);
+                response = await apiClient.post('/knowledge-points', kpData);
+                console.log('API响应:', response.data);
+                setSuccess('知识点创建成功！');
+                
+                // 立即导航，不延迟
+                navigate('/');
             }
-            navigate('/');
         } catch (error) {
             console.error('保存知识点失败', error);
+            
+            // 处理不同类型的错误
+            if (error.response) {
+                // 服务器返回了错误状态码
+                const status = error.response.status;
+                const message = error.response.data?.message || error.response.data;
+                
+                switch (status) {
+                    case 400:
+                        setError(`请求参数错误: ${message}`);
+                        break;
+                    case 401:
+                        setError('未授权，请重新登录');
+                        break;
+                    case 403:
+                        setError('没有权限执行此操作');
+                        break;
+                    case 404:
+                        setError('知识点不存在');
+                        break;
+                    case 409:
+                        setError('知识点已存在');
+                        break;
+                    case 500:
+                        setError('服务器内部错误，请稍后重试');
+                        break;
+                    default:
+                        setError(`保存失败: ${message || '未知错误'}`);
+                }
+            } else if (error.request) {
+                // 请求已发送但没有收到响应
+                setError('网络错误，请检查网络连接');
+            } else {
+                // 其他错误
+                setError(`保存失败: ${error.message}`);
+            }
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
         <div>
             <h1>{isEditing ? '编辑知识点' : '新建知识点'}</h1>
+            
+            {/* 显示错误消息 */}
+            {error && (
+                <div style={{ 
+                    color: 'red', 
+                    backgroundColor: '#ffe6e6', 
+                    padding: '10px', 
+                    border: '1px solid red',
+                    borderRadius: '4px',
+                    marginBottom: '1rem'
+                }}>
+                    {error}
+                </div>
+            )}
+            
+            {/* 显示成功消息 */}
+            {success && (
+                <div style={{ 
+                    color: 'green', 
+                    backgroundColor: '#e6ffe6', 
+                    padding: '10px', 
+                    border: '1px solid green',
+                    borderRadius: '4px',
+                    marginBottom: '1rem'
+                }}>
+                    {success}
+                </div>
+            )}
+            
             <form onSubmit={handleSubmit}>
                 <div>
                     <label>标题:</label>
-                    <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} style={{ width: '100%', padding: '8px' }} />
+                    <input 
+                        type="text" 
+                        value={title} 
+                        onChange={(e) => setTitle(e.target.value)} 
+                        style={{ width: '100%', padding: '8px' }} 
+                        disabled={loading}
+                    />
                 </div>
                 <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
                     <label>内容:</label>
                     {/* 将 textarea 替换为 ReactQuill */}
-                    <ReactQuill theme="snow" value={content} onChange={setContent} style={{ height: '300px' }} />
+                    <ReactQuill 
+                        theme="snow" 
+                        value={content} 
+                        onChange={setContent} 
+                        style={{ height: '300px' }} 
+                        readOnly={loading}
+                    />
                 </div>
-                <button type="submit" style={{ marginTop: '4rem' }}>{isEditing ? '更新' : '创建'}</button>
+                <button 
+                    type="submit" 
+                    style={{ 
+                        marginTop: '4rem', 
+                        padding: '10px 20px',
+                        backgroundColor: loading ? '#ccc' : '#007bff',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: loading ? 'not-allowed' : 'pointer'
+                    }}
+                    disabled={loading}
+                >
+                    {loading ? '保存中...' : (isEditing ? '更新' : '创建')}
+                </button>
             </form>
         </div>
     );
