@@ -9,6 +9,8 @@ function FeynmanRecordPage() {
     const [kpTitle, setKpTitle] = useState('');
     const [transcribedText, setTranscribedText] = useState('');
     const [isUploading, setIsUploading] = useState(false);
+    const [aiFeedback, setAiFeedback] = useState(null);
+    const [isEvaluating, setIsEvaluating] = useState(false);
 
     useEffect(() => {
         // 获取知识点标题用于显示
@@ -22,6 +24,32 @@ function FeynmanRecordPage() {
         };
         fetchKpTitle();
     }, [id]);
+
+    // 新增一个函数来处理AI评价
+    const getAiEvaluation = async (transcribed) => {
+        setIsEvaluating(true);
+        setAiFeedback(null);
+        
+        try {
+            // 获取原始知识点内容
+            const kpResponse = await apiClient.get(`/knowledge-points/${id}`);
+            if (kpResponse.data.code != 0) {
+                throw new Error(kpResponse.data.msg);
+            } 
+            const originalContent = kpResponse.data.data.kp.content;
+            const feedbackResponse = await apiClient.post('/audio/evaluate', {
+                originalContent: originalContent,
+                transcribedText: transcribed
+            });
+
+            setAiFeedback(feedbackResponse.data);
+
+        } catch (error) {
+            console.error('获取AI评价失败', error);
+        } finally {
+            setIsEvaluating(false);
+        }
+    };
 
     const uploadAudio = async (blobUrl) => {
         setIsUploading(true);
@@ -43,6 +71,11 @@ function FeynmanRecordPage() {
                 throw new Error('转录失败: ' + response.data.msg);
             }
             setTranscribedText(response.data.result);
+            // 如果转录成功且有结果，触发AI评价
+            // 测试： 暂时不需要有内容
+            if (!response.data.result) {
+                getAiEvaluation(response.data.result); 
+                }
         } catch (error) {
             console.error('上传或转录失败', error);
             setTranscribedText('转录失败，请重试。 ${error.message || error.toString()}');
@@ -55,7 +88,7 @@ function FeynmanRecordPage() {
     const { status: recStatus, startRecording: recStart, stopRecording: recStop, mediaBlobUrl: recUrl } = useReactMediaRecorder({ 
       audio: true,
       onStart: () => {
-        console.log("Kaishi ")
+        console.log("开始 ")
       },
       onError: (error) => {
         console.log("==========")    
@@ -84,6 +117,38 @@ function FeynmanRecordPage() {
             <div style={{ border: '1px solid #ccc', padding: '1rem', minHeight: '100px' }}>
                 {transcribedText}
             </div>
+            
+            {/* ... 在转录结果 div 下方*/}
+            <hr />
+            <h2>AI 教练反馈:</h2>
+            {isEvaluating && <p>AI教练正在批阅您的答卷...</p>}
+            {aiFeedback && (
+                <div className="ai-feedback" style={{ display: 'flex', gap: '2rem' }}>
+                    <div style={{ flex: 1 }}>
+                        <h3>AI 润色后的文本</h3>
+                        <p style={{ background: '#eef', padding: '1rem' }}>{aiFeedback.polishedText}</p>
+                        
+                        <h3>综合评价</h3>
+                        <p>{aiFeedback.evaluation}</p>
+
+                        <h3>优点 👍</h3>
+                        <ul>
+                            {aiFeedback.strengths.map((item, index) => <li key={index}>{item}</li>)}
+                        </ul>
+
+                        <h3>待改进 👇</h3>
+                        <ul>
+                            {aiFeedback.weaknesses.map((item, index) => <li key={index}>{item}</li>)}
+                        </ul>
+                    </div>
+                    <div style={{ flex: '0 0 150px', textAlign: 'center' }}>
+                        <h3>综合得分</h3>
+                        <div style={{ fontSize: '3rem', fontWeight: 'bold', color: aiFeedback.score > 80 ? 'green' : 'orange' }}>
+                            {aiFeedback.score}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
