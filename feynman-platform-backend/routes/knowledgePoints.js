@@ -4,7 +4,7 @@ const router = express.Router();
 const auth = require("../middleware/auth"); // 引入认证中间件
 const KnowledgePoint = require("../models/KnowledgePoint");
 const AppError = require("../utils/appError");
-const { addKnowledgePointToStore } = require("../services/vectorStoreService");
+const { addKnowledgePointToStore } = require("../services/embedding_kp");
 
 // @route   POST /api/knowledge-points
 // @desc    创建一个新的知识点
@@ -19,8 +19,8 @@ router.post("/", auth, async (req, res) => {
       user: req.user.id, // 从auth中间件附加的req.user中获取用户ID
     });
     const kp = await newKp.save();
-    // 异步调用，无需等待其完成即可返回响应给用户，提升体验
-    addKnowledgePointToStore(kp);
+    // 向量化知识点并存储
+    addKnowledgePointToStore(kp); 
     // res.json(kp);
     res.json({
       code: 0,

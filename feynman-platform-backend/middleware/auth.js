@@ -2,6 +2,7 @@
 const jwt = require('jsonwebtoken');
 
 module.exports = function(req, res, next) {
+    
     // 1. 从请求头中获取token
     const token = req.header('x-auth-token');
 

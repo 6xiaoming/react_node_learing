@@ -1,12 +1,14 @@
 // utils/DeepSeekUtil.js
 const OpenAI = require("openai");
 
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY;
+if (!OPENAI_API_KEY) {
+  throw new Error("缺少 OpenAI/DeepSeek 凭证，请设置 OPENAI_API_KEY 或 DEEPSEEK_API_KEY");
+}
+
 class DeepSeekUtil {
   constructor() {
-    this.client = new OpenAI({
-      baseURL: 'https://api.deepseek.com',
-      apiKey: process.env.DEEPSEEK_API_KEY,
-    });
+    this.client = new OpenAI({ apiKey: OPENAI_API_KEY });
   }
 
   /**
